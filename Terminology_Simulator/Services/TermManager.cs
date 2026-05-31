@@ -27,7 +27,7 @@ public class TermManager
     {
         TermSet termSet = new()
         {
-            Name = name
+            Name = NormalizeRequiredText(name, nameof(name))
         };
 
         _state.TermSets.Add(termSet);
@@ -45,6 +45,7 @@ public class TermManager
             return false;
         }
 
+        RemoveStatisticsForTerms(termSet.Terms.Select(term => term.Id));
         _state.TermSets.Remove(termSet);
         SaveChanges();
 
@@ -60,7 +61,7 @@ public class TermManager
             return false;
         }
 
-        termSet.Name = newName;
+        termSet.Name = NormalizeRequiredText(newName, nameof(newName));
         SaveChanges();
 
         return true;
@@ -73,12 +74,13 @@ public class TermManager
             return new List<KeyValuePair<Term, TermSet>>();
         }
 
+        string normalizedQuery = query.Trim();
         List<KeyValuePair<Term, TermSet>> results = new();
 
         foreach (TermSet termSet in _state.TermSets)
         {
             IEnumerable<Term> matchingTerms = termSet.Terms
-                .Where(term => term.Word.Contains(query, StringComparison.OrdinalIgnoreCase));
+                .Where(term => term.Word.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase));
 
             foreach (Term term in matchingTerms)
             {
@@ -134,7 +136,7 @@ public class TermManager
 
         Term term = new()
         {
-            Word = word,
+            Word = NormalizeRequiredText(word, nameof(word)),
             Definitions = definitionList
         };
 
@@ -153,7 +155,7 @@ public class TermManager
             return false;
         }
 
-        term.Word = newWord;
+        term.Word = NormalizeRequiredText(newWord, nameof(newWord)); 
         term.Definitions = CreateDefinitionList(newDefinitions);
         SaveChanges();
 
@@ -176,6 +178,7 @@ public class TermManager
             return false;
         }
 
+        RemoveStatisticsForTerms(new[] { term.Id });
         termSet.Terms.Remove(term);
         SaveChanges();
 
@@ -191,7 +194,13 @@ public class TermManager
             return false;
         }
 
-        term.Definitions.Add(definition);
+        string normalizedDefinition = NormalizeRequiredText(definition, nameof(definition));
+        if (term.Definitions.Contains(normalizedDefinition, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        term.Definitions.Add(normalizedDefinition);
         SaveChanges();
 
         return true;
@@ -201,7 +210,16 @@ public class TermManager
     {
         Term? term = FindTerm(setId, termId);
 
-        if (term is null || !term.Definitions.Contains(definition))
+        if (term is null)
+        {
+            return false;
+        }
+
+        string normalizedDefinition = NormalizeRequiredText(definition, nameof(definition));
+        string? existingDefinition = term.Definitions
+            .FirstOrDefault(currentDefinition =>
+                string.Equals(currentDefinition, normalizedDefinition, StringComparison.OrdinalIgnoreCase));
+        if (existingDefinition is null)
         {
             return false;
         }
@@ -211,7 +229,7 @@ public class TermManager
             return false;
         }
 
-        term.Definitions.Remove(definition);
+        term.Definitions.Remove(existingDefinition);
         SaveChanges();
 
         return true;
@@ -231,7 +249,12 @@ public class TermManager
 
     private static List<string> CreateDefinitionList(IEnumerable<string> definitions)
     {
-        List<string> definitionList = definitions.ToList();
+        ArgumentNullException.ThrowIfNull(definitions);
+
+        List<string> definitionList = definitions
+            .Select(definition => NormalizeRequiredText(definition, nameof(definitions)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         if (definitionList.Count == 0)
         {
@@ -239,6 +262,23 @@ public class TermManager
         }
 
         return definitionList;
+    }
+    private static string NormalizeRequiredText(string value, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("Value cannot be empty.", parameterName);
+        }
+
+        return value.Trim();
+    }
+
+    private void RemoveStatisticsForTerms(IEnumerable<Guid> termIds)
+    {
+        foreach (Guid termId in termIds.ToList())
+        {
+            _state.Statistics.ErrorCounts.Remove(termId);
+        }
     }
 
     private TermSet? FindSet(Guid setId)

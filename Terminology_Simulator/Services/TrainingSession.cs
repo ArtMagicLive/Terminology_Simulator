@@ -39,8 +39,9 @@ public class TrainingSession
     public bool SubmitAnswer(string answer)
     {
         Term currentQuestion = GetCurrentQuestion();
+        string normalizedAnswer = answer.Trim();
         bool isCorrect = currentQuestion.Definitions.Any(definition =>
-            string.Equals(definition, answer, StringComparison.OrdinalIgnoreCase));
+            string.Equals(definition.Trim(), normalizedAnswer, StringComparison.OrdinalIgnoreCase));
 
         if (isCorrect)
         {

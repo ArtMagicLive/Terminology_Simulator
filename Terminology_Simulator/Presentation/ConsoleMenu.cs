@@ -423,8 +423,8 @@ public class ConsoleMenu
     private void AddDefinition(TermSet termSet, Term term)
     {
         string definition = ReadRequiredText("Новый вариант ответа: ");
-        _termManager.AddDefinition(termSet.Id, term.Id, definition);
-        ShowMessage("Вариант ответа добавлен.");
+        bool added = _termManager.AddDefinition(termSet.Id, term.Id, definition);
+        ShowMessage(added ? "Вариант ответа добавлен." : "Такой вариант ответа уже существует.");
     }
 
     private void RemoveDefinition(TermSet termSet)

@@ -29,9 +29,19 @@ public class JsonStorageService : IStorageService
         }
 
         string json = File.ReadAllText(_filePath);
-        AppState? state = JsonSerializer.Deserialize<AppState>(json, _jsonOptions);
-
-        return EnsureInitialized(state);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return new AppState();
+        }
+        try
+        {
+            AppState? state = JsonSerializer.Deserialize<AppState>(json, _jsonOptions);
+            return EnsureInitialized(state);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException($"State file '{_filePath}' contains invalid JSON.", ex);
+        }
     }
 
     public void SaveState(AppState state)
@@ -59,6 +69,16 @@ public class JsonStorageService : IStorageService
         state.History ??= new List<SessionResult>();
         state.Statistics ??= new ErrorStatistics();
         state.Statistics.ErrorCounts ??= new Dictionary<Guid, int>();
+        
+        foreach (TermSet termSet in state.TermSets)
+        {
+            termSet.Terms ??= new List<Term>();
+
+            foreach (Term term in termSet.Terms)
+            {
+                term.Definitions ??= new List<string>();
+            }
+        }
 
         return state;
     }
